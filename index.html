@@ -5,341 +5,239 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TicketMiam - Analyse Nutritionnelle</title>
-    
-    <!-- Bibliothèques Externes -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    <!-- Babel Standalone pour le support JSX/TS dans le navigateur -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script>
-      // Configuration de l'environnement pour Gemini
-      window.process = { env: { API_KEY: "" } }; // La clé sera injectée par l'environnement
-      window.global = window;
-
-      // Configuration Babel pour autoriser les imports ESM dans le code transformé
-      Babel.registerPreset('app-preset', {
-        presets: [
-          [Babel.availablePresets['typescript'], { allExtensions: true, isTSX: true }],
-          [Babel.availablePresets['react']]
-        ]
-      });
-    </script>
-
-    <script type="importmap">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; margin: 0; }
+        .nutri-a { background-color: #008b4c; } .nutri-b { background-color: #80c11e; }
+        .nutri-c { background-color: #fecb02; } .nutri-d { background-color: #ee8100; }
+        .nutri-e { background-color: #e63e11; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+        .custom-shadow { box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); }
+        #root:empty::before {
+            content: "TicketMiam...";
+            display: flex; justify-content: center; align-items: center; height: 100vh;
+            color: #10b981; font-weight: 900; font-size: 1.5rem;
+        }
+    </style>
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "recharts": "https://esm.sh/recharts@2.15.0",
-    "tesseract.js": "https://esm.sh/tesseract.js@5.1.1",
-    "@google/genai": "https://esm.sh/@google/genai@1.41.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/"
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "react": "https://esm.sh/react@^19.2.4",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "tesseract.js": "https://esm.sh/tesseract.js@^7.0.0"
   }
 }
 </script>
-
-    <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; margin: 0; overflow-x: hidden; }
-        .nutri-a { background-color: #008b4c; }
-        .nutri-b { background-color: #80c11e; }
-        .nutri-c { background-color: #fecb02; }
-        .nutri-d { background-color: #ee8100; }
-        .nutri-e { background-color: #e63e11; }
-        
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
-        
-        #root:empty::before {
-            content: "Préparation de TicketMiam...";
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: #10b981;
-            font-weight: 900;
-            font-size: 1.2rem;
-            letter-spacing: -0.02em;
-        }
-
-        .custom-shadow { box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); }
-    </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <!-- CODE APPLICATION FUSIONNÉ -->
-    <script type="text/babel" data-presets="app-preset" data-type="module">
-        import React, { useState, useEffect } from 'react';
-        import ReactDOM from 'react-dom/client';
-        import { GoogleGenAI, Type } from "@google/genai";
-        import { createWorker } from 'tesseract.js';
-        import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
+    <script type="module">
+        import React from 'https://esm.sh/react@19.0.0';
+        import ReactDOM from 'https://esm.sh/react-dom@19.0.0/client';
+        import htm from 'https://esm.sh/htm@3.1.1';
+        import { GoogleGenAI, Type } from 'https://esm.sh/@google/genai@1.41.0';
+        import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'https://esm.sh/recharts@2.15.0';
 
-        // --- CONFIGURATION GEMINI ---
-        const PRODUCT_SCHEMA = {
-          type: Type.OBJECT,
-          properties: {
-            storeName: { type: Type.STRING },
-            products: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  nutriScore: { type: Type.STRING },
-                  isUltraProcessed: { type: Type.BOOLEAN },
-                  calories: { type: Type.NUMBER },
-                  sugar: { type: Type.NUMBER },
-                  salt: { type: Type.NUMBER },
-                  saturatedFat: { type: Type.NUMBER },
-                  proteins: { type: Type.NUMBER },
-                  carbs: { type: Type.NUMBER },
-                  fats: { type: Type.NUMBER },
-                },
-                required: ["name", "nutriScore", "isUltraProcessed", "calories", "sugar", "salt", "saturatedFat", "proteins", "carbs", "fats"]
-              }
-            }
-          },
-          required: ["storeName", "products"]
+        const html = htm.bind(React.createElement);
+        window.process = { env: { API_KEY: "" } };
+
+        // --- SERVICES ---
+        const SCHEMA = {
+            type: Type.OBJECT,
+            properties: {
+                store: { type: Type.STRING },
+                items: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            name: { type: Type.STRING },
+                            score: { type: Type.STRING },
+                            nova4: { type: Type.BOOLEAN },
+                            kcal: { type: Type.NUMBER },
+                            p: { type: Type.NUMBER },
+                            c: { type: Type.NUMBER },
+                            l: { type: Type.NUMBER }
+                        },
+                        required: ["name", "score", "nova4", "kcal", "p", "c", "l"]
+                    }
+                }
+            },
+            required: ["store", "items"]
         };
 
-        async function analyzeReceipt(base64Image) {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const imagePart = { inlineData: { mimeType: "image/jpeg", data: base64Image.split(",")[1] || base64Image } };
-          const prompt = `Analyse ce ticket de caisse. Identifie l'enseigne et les produits. Estime Nutri-Score, NOVA, Macros pour 100g. Réponds en JSON.`;
-          
-          const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: { parts: [imagePart, { text: prompt }] },
-            config: { responseMimeType: "application/json", responseSchema: PRODUCT_SCHEMA },
-          });
-
-          const result = JSON.parse(response.text || "{}");
-          return {
-            storeName: result.storeName || "Mon Magasin",
-            products: (result.products || []).map(p => ({ ...p, id: Math.random().toString(36).substring(2, 11) }))
-          };
+        async function scanTicket(base64) {
+            const ai = new GoogleGenAI({ apiKey: window.process.env.API_KEY });
+            const prompt = "Analyse ce ticket de caisse. Liste les produits alimentaires avec estimation Nutri-Score (A-E), NOVA 4 (booléen) et macros (protéines p, glucides c, lipides l) pour 100g. Réponds en JSON.";
+            const response = await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: { parts: [{ inlineData: { mimeType: "image/jpeg", data: base64.split(",")[1] } }, { text: prompt }] },
+                config: { responseMimeType: "application/json", responseSchema: SCHEMA }
+            });
+            return JSON.parse(response.text);
         }
 
-        // --- COMPOSANTS UI ---
-        const NutriScoreBadge = ({ score, size = 'md' }) => {
-          const colors = { A: 'nutri-a', B: 'nutri-b', C: 'nutri-c', D: 'nutri-d', E: 'nutri-e' };
-          const sizes = { sm: 'w-6 h-6 text-[10px]', md: 'w-10 h-10 text-lg', lg: 'w-16 h-16 text-3xl' };
-          return (
-            <div className={`${colors[score] || 'bg-slate-200'} text-white ${sizes[size]} rounded-lg flex items-center justify-center font-black shadow-sm`}>
-              {score}
-            </div>
-          );
+        // --- COMPONENTS ---
+        const Badge = ({ score, size = 'md' }) => {
+            const colors = { A: 'nutri-a', B: 'nutri-b', C: 'nutri-c', D: 'nutri-d', E: 'nutri-e' };
+            const sizes = { sm: 'w-6 h-6 text-[10px]', md: 'w-10 h-10 text-lg', lg: 'w-16 h-16 text-3xl' };
+            return html`<div className="${colors[score] || 'bg-slate-200'} text-white ${sizes[size]} rounded-lg flex items-center justify-center font-black shadow-sm">${score}</div>`;
         };
 
-        const NutritionSummary = ({ proteins, carbs, fats }) => {
-          const data = [
-            { name: 'Protéines', value: proteins, color: '#10b981' },
-            { name: 'Glucides', value: carbs, color: '#3b82f6' },
-            { name: 'Lipides', value: fats, color: '#f59e0b' },
-          ];
-          return (
-            <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={data} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value" stroke="none">
-                    {data.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                  </Pie>
-                  <RechartsTooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          );
+        const Chart = ({ p, c, l }) => {
+            const data = [
+                { name: 'Prot', value: p, color: '#10b981' },
+                { name: 'Gluc', value: c, color: '#3b82f6' },
+                { name: 'Lip', value: l, color: '#f59e0b' }
+            ];
+            return html`
+                <div className="h-48 w-full">
+                    <${ResponsiveContainer} width="100%" height="100%">
+                        <${PieChart}>
+                            <${Pie} data=${data} cx="50%" cy="50%" innerRadius=${40} outerRadius=${60} paddingAngle=${5} dataKey="value" stroke="none">
+                                ${data.map((entry, i) => html`<${Cell} key=${i} fill=${entry.color} />`)}
+                            <//>
+                            <${Tooltip} />
+                            <${Legend} />
+                        <//>
+                    <//>
+                </div>
+            `;
         };
 
-        // --- APPLICATION PRINCIPALE ---
+        // --- MAIN APP ---
         const App = () => {
-          const [view, setView] = useState('home');
-          const [history, setHistory] = useState([]);
-          const [currentResult, setCurrentResult] = useState(null);
-          const [isLoading, setIsLoading] = useState(false);
-          const [error, setError] = useState(null);
+            const [view, setView] = React.useState('home');
+            const [loading, setLoading] = React.useState(false);
+            const [data, setData] = React.useState(null);
+            const [history, setHistory] = React.useState([]);
 
-          useEffect(() => {
-            const saved = localStorage.getItem('ticketmiam_v2');
-            if (saved) setHistory(JSON.parse(saved));
-          }, []);
+            React.useEffect(() => {
+                const saved = localStorage.getItem('miam_history');
+                if (saved) setHistory(JSON.parse(saved));
+            }, []);
 
-          const handleFileUpload = async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setIsLoading(true); setView('scan'); setError(null);
-            try {
-              const reader = new FileReader();
-              const base64 = await new Promise((resolve) => {
-                reader.onload = () => resolve(reader.result);
-                reader.readAsDataURL(file);
-              });
-              const data = await analyzeReceipt(base64);
-              const result = {
-                id: Date.now().toString(),
-                date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-                storeName: data.storeName,
-                products: data.products,
-                totalScore: (() => {
-                   if (!data.products.length) return 'C';
-                   const scores = { A: 4, B: 3, C: 2, D: 1, E: 0 };
-                   const avg = data.products.reduce((acc, p) => acc + (scores[p.nutriScore] || 2), 0) / data.products.length;
-                   if (avg >= 3.5) return 'A'; if (avg >= 2.5) return 'B'; if (avg >= 1.5) return 'C'; if (avg >= 0.5) return 'D'; return 'E';
-                })(),
-                summary: {
-                  sugar: +(data.products.reduce((acc, p) => acc + p.sugar, 0) / (data.products.length || 1)).toFixed(1),
-                  calories: Math.round(data.products.reduce((acc, p) => acc + p.calories, 0)),
-                  processed: Math.round((data.products.filter(p => p.isUltraProcessed).length / (data.products.length || 1)) * 100)
-                }
-              };
-              setCurrentResult(result);
-              const newHistory = [result, ...history].slice(0, 10);
-              setHistory(newHistory);
-              localStorage.setItem('ticketmiam_v2', JSON.stringify(newHistory));
-              setView('result');
-            } catch (err) {
-              setError("Analyse impossible. Vérifiez la netteté de la photo.");
-              setView('home');
-            } finally { setIsLoading(false); }
-          };
+            const onFile = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                setLoading(true); setView('scan');
+                try {
+                    const reader = new FileReader();
+                    const base64 = await new Promise(r => { reader.onload = () => r(reader.result); reader.readAsDataURL(file); });
+                    const res = await scanTicket(base64);
+                    
+                    const scoreValues = { A: 4, B: 3, C: 2, D: 1, E: 0 };
+                    const avg = res.items.reduce((acc, i) => acc + (scoreValues[i.score] || 2), 0) / (res.items.length || 1);
+                    const globalScore = avg >= 3.5 ? 'A' : avg >= 2.5 ? 'B' : avg >= 1.5 ? 'C' : avg >= 0.5 ? 'D' : 'E';
 
-          return (
-            <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col">
-              {isLoading ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-10 space-y-6 text-center">
-                  <div className="w-20 h-20 border-8 border-emerald-500 border-t-transparent animate-spin rounded-full shadow-lg"></div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-800">Analyse du ticket...</h2>
-                    <p className="text-slate-400 font-medium">Gemini déchiffre vos courses</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 p-6 pb-24">
-                  {view === 'home' && (
-                    <div className="space-y-10 py-10 animate-fadeIn">
-                      <header className="text-center space-y-2">
-                        <div className="inline-block px-3 py-1 bg-emerald-100 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest mb-2">Beta V2.0</div>
-                        <h1 className="text-5xl font-black tracking-tighter text-slate-900">TicketMiam</h1>
-                        <p className="text-slate-400 font-medium text-lg leading-tight">Votre score nutritionnel<br/>en un clic.</p>
-                      </header>
+                    const result = { ...res, id: Date.now(), globalScore, date: new Date().toLocaleDateString() };
+                    setData(result);
+                    const newHist = [result, ...history].slice(0, 10);
+                    setHistory(newHist);
+                    localStorage.setItem('miam_history', JSON.stringify(newHist));
+                    setView('result');
+                } catch (err) {
+                    alert("Erreur d'analyse. Réessayez.");
+                    setView('home');
+                } finally { setLoading(false); }
+            };
 
-                      <label className="flex flex-col items-center justify-center w-full h-80 border-4 border-emerald-500 border-dashed rounded-[3rem] bg-white custom-shadow cursor-pointer hover:bg-emerald-50 active:scale-95 transition-all">
-                        <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg mb-4">
-                          <i className="fas fa-camera text-3xl"></i>
+            return html`
+                <div className="max-w-md mx-auto min-h-screen flex flex-col p-6">
+                    ${loading ? html`
+                        <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+                            <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent animate-spin rounded-full"></div>
+                            <h2 className="text-xl font-black text-slate-800">Déchiffrage du ticket...</h2>
                         </div>
-                        <span className="font-black text-slate-800 text-xl">Scanner un ticket</span>
-                        <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handleFileUpload} />
-                      </label>
-
-                      {history.length > 0 && (
-                        <div className="space-y-4">
-                          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Historique récent</h3>
-                          <div className="bg-white rounded-[2rem] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
-                            {history.slice(0, 4).map(h => (
-                              <div key={h.id} onClick={() => { setCurrentResult(h); setView('result'); }} className="flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer transition-colors">
-                                <div className="flex items-center space-x-4">
-                                  <NutriScoreBadge score={h.totalScore} size="sm" />
-                                  <div>
-                                    <p className="font-bold text-slate-800 text-sm">{h.storeName}</p>
-                                    <p className="text-[10px] font-bold text-slate-300 uppercase">{h.date}</p>
-                                  </div>
-                                </div>
-                                <i className="fas fa-chevron-right text-slate-200"></i>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {view === 'result' && currentResult && (
-                    <div className="space-y-6 animate-fadeIn pb-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <button onClick={() => setView('home')} className="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-slate-500 active:scale-90 transition-all"><i className="fas fa-arrow-left"></i></button>
-                        <h2 className="text-xl font-black text-slate-800 truncate px-4">{currentResult.storeName}</h2>
-                        <div className="w-12"></div>
-                      </div>
-
-                      <section className="bg-white rounded-[3rem] p-8 shadow-xl border border-slate-50 text-center space-y-6">
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Qualité Globale</p>
-                        <div className="flex justify-center scale-150 py-4"><NutriScoreBadge score={currentResult.totalScore} size="lg" /></div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-slate-50 p-4 rounded-[2rem]">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Sucre</p>
-                            <p className="font-black text-orange-500">{currentResult.summary.sugar}g</p>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-[2rem]">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Calories</p>
-                            <p className="font-black text-indigo-500">{currentResult.summary.calories}</p>
-                          </div>
-                          <div className="bg-slate-50 p-4 rounded-[2rem]">
-                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Ultra-T</p>
-                            <p className="font-black text-red-500">{currentResult.summary.processed}%</p>
-                          </div>
-                        </div>
-                      </section>
-
-                      <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Répartition Macronutriments</h3>
-                        <NutritionSummary 
-                          proteins={currentResult.products.reduce((acc, p) => acc + p.proteins, 0)} 
-                          carbs={currentResult.products.reduce((acc, p) => acc + p.carbs, 0)} 
-                          fats={currentResult.products.reduce((acc, p) => acc + p.fats, 0)} 
-                        />
-                      </div>
-
-                      <div className="space-y-3">
-                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Détail des produits</h3>
-                        {currentResult.products.map((p, i) => (
-                          <div key={p.id} className="bg-white p-4 rounded-2xl flex items-center space-x-4 border border-slate-100 shadow-sm animate-fadeIn" style={{ animationDelay: `${i * 50}ms` }}>
-                            <NutriScoreBadge score={p.nutriScore} size="sm" />
-                            <div className="flex-1">
-                              <p className="font-bold text-slate-800 text-sm leading-tight">{p.name}</p>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <span className="text-[9px] text-slate-400 font-black uppercase">{p.calories} kcal/100g</span>
-                                {p.isUltraProcessed && <span className="bg-red-50 text-red-500 text-[8px] px-1.5 py-0.5 rounded font-black uppercase">Ultra-T</span>}
-                              </div>
+                    ` : html`
+                        ${view === 'home' && html`
+                            <div className="space-y-10 py-10 animate-fadeIn">
+                                <header className="text-center">
+                                    <h1 className="text-5xl font-black tracking-tighter text-slate-900">TicketMiam</h1>
+                                    <p className="text-slate-400 font-medium mt-2">Analysez vos courses en un clin d'œil.</p>
+                                </header>
+                                <label className="flex flex-col items-center justify-center w-full h-80 border-4 border-emerald-500 border-dashed rounded-[3rem] bg-white custom-shadow cursor-pointer hover:bg-emerald-50 transition-all">
+                                    <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg mb-4">
+                                        <i className="fas fa-camera text-3xl"></i>
+                                    </div>
+                                    <span className="font-black text-slate-800 text-xl">Scanner un ticket</span>
+                                    <input type="file" className="hidden" accept="image/*" capture="environment" onChange=${onFile} />
+                                </label>
+                                ${history.length > 0 && html`
+                                    <div className="space-y-4">
+                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Dernières analyses</h3>
+                                        <div className="bg-white rounded-[2rem] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
+                                            ${history.map(h => html`
+                                                <div key=${h.id} onClick=${() => { setData(h); setView('result'); }} className="flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer">
+                                                    <div className="flex items-center space-x-4">
+                                                        <${Badge} score=${h.globalScore} size="sm" />
+                                                        <span className="font-bold text-slate-800 text-sm">${h.store}</span>
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-slate-300 uppercase">${h.date}</span>
+                                                </div>
+                                            `)}
+                                        </div>
+                                    </div>
+                                `}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <nav className="fixed bottom-6 left-10 right-10 bg-white/90 backdrop-blur-xl border border-white/20 px-8 py-4 flex justify-around items-center rounded-full shadow-[0_20px_40px_-10px_rgba(0,0,0,0.15)] z-50">
-                <button onClick={() => setView('home')} className={`text-2xl ${view === 'home' ? 'text-emerald-500' : 'text-slate-300'}`}><i className="fas fa-home"></i></button>
-                <label className="bg-emerald-500 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg cursor-pointer transform hover:scale-110 active:scale-90 transition-all">
-                  <i className="fas fa-plus text-xl"></i>
-                  <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handleFileUpload} />
-                </label>
-                <button onClick={() => setHistory([])} className="text-2xl text-slate-300 hover:text-red-400 transition-colors"><i className="fas fa-trash"></i></button>
-              </nav>
+                        `}
 
-              {error && (
-                <div className="fixed top-6 left-6 right-6 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between z-[100] animate-fadeIn">
-                  <div className="flex items-center space-x-3">
-                    <i className="fas fa-exclamation-circle text-red-400"></i>
-                    <p className="text-xs font-bold">{error}</p>
-                  </div>
-                  <button onClick={() => setError(null)}><i className="fas fa-times text-slate-400"></i></button>
+                        ${view === 'result' && data && html`
+                            <div className="space-y-6 animate-fadeIn pb-24">
+                                <button onClick=${() => setView('home')} className="w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-slate-500"><i className="fas fa-arrow-left"></i></button>
+                                <section className="bg-white rounded-[2.5rem] p-8 shadow-xl text-center space-y-4">
+                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Score Global</p>
+                                    <div className="flex justify-center scale-125 py-2"><${Badge} score=${data.globalScore} size="lg" /></div>
+                                    <h2 className="text-2xl font-black">${data.store}</h2>
+                                </section>
+
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Macronutriments moyens</h3>
+                                    <${Chart} 
+                                        p=${data.items.reduce((a, b) => a + b.p, 0)} 
+                                        c=${data.items.reduce((a, b) => a + b.c, 0)} 
+                                        l=${data.items.reduce((a, b) => a + b.l, 0)} 
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Détail du panier</h3>
+                                    ${data.items.map((item, i) => html`
+                                        <div key=${i} className="bg-white p-4 rounded-2xl flex items-center space-x-4 border border-slate-100 shadow-sm">
+                                            <${Badge} score=${item.score} size="sm" />
+                                            <div className="flex-1">
+                                                <p className="font-bold text-slate-800 text-sm leading-tight">${item.name}</p>
+                                                <div className="flex items-center space-x-2 mt-1">
+                                                    <span className="text-[9px] text-slate-400 font-black uppercase">${item.kcal} kcal/100g</span>
+                                                    ${item.nova4 && html`<span className="bg-red-50 text-red-500 text-[8px] px-1.5 py-0.5 rounded font-black uppercase">Ultra-T</span>`}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `)}
+                                </div>
+                            </div>
+                        `}
+                    `}
+
+                    <nav className="fixed bottom-6 left-10 right-10 bg-white/90 backdrop-blur-xl border border-white/20 px-8 py-4 flex justify-around items-center rounded-full shadow-lg z-50">
+                        <button onClick=${() => setView('home')} className="text-2xl text-emerald-500"><i className="fas fa-home"></i></button>
+                        <label className="bg-emerald-500 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg cursor-pointer transform -translate-y-4 hover:scale-110 transition-all">
+                            <i className="fas fa-plus text-xl"></i>
+                            <input type="file" className="hidden" accept="image/*" capture="environment" onChange=${onFile} />
+                        </label>
+                        <button onClick=${() => { localStorage.clear(); setHistory([]); setView('home'); }} className="text-2xl text-slate-300"><i className="fas fa-trash"></i></button>
+                    </nav>
                 </div>
-              )}
-            </div>
-          );
+            `;
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
     </script>
 </body>
 </html>
