@@ -37,6 +37,10 @@
           border-radius: 10px;
         }
     </style>
+    <script>
+      // Shim pour process.env afin d'éviter les erreurs ReferenceError dans le navigateur
+      window.process = { env: { API_KEY: "" } };
+    </script>
 <script type="importmap">
 {
   "imports": {
@@ -52,5 +56,7 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- Chargement explicite du point d'entrée de l'application -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>

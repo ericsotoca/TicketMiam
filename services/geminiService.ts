@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { NutriScore, Product } from "../types";
+import { NutriScore, Product } from "../types.ts";
 
 const PRODUCT_SCHEMA = {
   type: Type.OBJECT,
@@ -31,7 +31,6 @@ const PRODUCT_SCHEMA = {
 };
 
 export async function processReceipt(base64Image: string): Promise<{ storeName: string, products: Product[] }> {
-  // Always use {apiKey: process.env.API_KEY} as a named parameter.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const imagePart = {
@@ -49,8 +48,6 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
   Réponds uniquement au format JSON.`;
 
   try {
-    // FIX: Using gemini-3-flash-preview for general multimodal text extraction tasks.
-    // FIX: Request 'contents' structure updated to follow official examples.
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: { parts: [imagePart, { text: prompt }] },
@@ -60,7 +57,6 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
       },
     });
 
-    // FIX: Extract text directly from the response.text property (not a method).
     const result = JSON.parse(response.text || "{}");
     return {
       storeName: result.storeName || "Mon Magasin",

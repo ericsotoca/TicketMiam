@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { NutriScore } from '../types';
+import { NutriScore } from '../types.ts';
 
 interface Props {
   score: NutriScore;

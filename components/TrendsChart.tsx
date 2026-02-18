@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ScanResult, NutriScore } from '../types';
+import { ScanResult, NutriScore } from '../types.ts';
 
 interface Props {
   history: ScanResult[];

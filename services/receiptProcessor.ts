@@ -1,6 +1,6 @@
 
 import { createWorker } from 'tesseract.js';
-import { NutriScore, Product } from '../types';
+import { NutriScore, Product } from '../types.ts';
 
 /**
  * Nettoie une ligne de ticket pour extraire un nom de produit potentiel
@@ -62,7 +62,6 @@ export async function processReceiptLocally(
   onProgress: (progress: number) => void
 ): Promise<{ storeName: string, products: Product[] }> {
   
-  // FIX: Tesseract.js v5 createWorker signature is createWorker(langs, oem, options).
   const worker = await createWorker('fra', 1, {
     logger: (m: any) => {
       if (m && m.status === 'recognizing text') {
@@ -71,13 +70,9 @@ export async function processReceiptLocally(
     }
   });
 
-  // FIX: worker.loadLanguage and worker.initialize are no longer needed/available in v5 as createWorker handles it.
-  
-  // FIX: Accessing result data and terminating correctly.
   const result = await worker.recognize(base64Image);
   await worker.terminate();
 
-  // FIX: Cast result.data to any to safely access 'lines' property which may be missing from outdated type definitions.
   const lines = (result.data as any).lines || [];
 
   const potentialQueries: string[] = lines
@@ -92,7 +87,6 @@ export async function processReceiptLocally(
     if (product) products.push(product);
   }
 
-  // FIX: Access first line text safely using any cast.
   const storeLine = (lines[0] as any)?.text?.trim() || "Magasin Inconnu";
 
   return {

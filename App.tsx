@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, ScanResult, NutriScore, Product } from './types';
-import { searchProduct, processReceiptLocally } from './services/receiptProcessor';
-import { processReceipt } from './services/geminiService';
-import NutriScoreBadge from './components/NutriScoreBadge';
-import NutritionChart from './components/NutritionChart';
-import TrendsChart from './components/TrendsChart';
+import { View, ScanResult, NutriScore, Product } from './types.ts';
+import { searchProduct, processReceiptLocally } from './services/receiptProcessor.ts';
+import { processReceipt } from './services/geminiService.ts';
+import NutriScoreBadge from './components/NutriScoreBadge.tsx';
+import NutritionChart from './components/NutritionChart.tsx';
+import TrendsChart from './components/TrendsChart.tsx';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('home');
