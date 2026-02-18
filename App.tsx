@@ -18,20 +18,25 @@ const App: React.FC = () => {
   const [isSearchingManual, setIsSearchingManual] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('ticketmiam_final_v1');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('ticketmiam_final_v1');
+      if (saved) {
         setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load history", e);
       }
+    } catch (e) {
+      console.warn("Failed to load history from localStorage", e);
     }
   }, []);
 
+  // Sécurité supplémentaire : si le rendu crash, on affiche un message simple
+  if (error && view === 'home' && history.length === 0 && !isLoading) {
+    console.log("Current state error:", error);
+  }
+
   const calculateGlobalScore = (products: Product[]): NutriScore => {
-    if (products.length === 0) return NutriScore.C;
+    if (!products || products.length === 0) return NutriScore.C;
     const scores = { [NutriScore.A]: 4, [NutriScore.B]: 3, [NutriScore.C]: 2, [NutriScore.D]: 1, [NutriScore.E]: 0 };
-    const avg = products.reduce((acc, p) => acc + scores[p.nutriScore], 0) / products.length;
+    const avg = products.reduce((acc, p) => acc + (scores[p.nutriScore] ?? 2), 0) / products.length;
     if (avg >= 3.5) return NutriScore.A;
     if (avg >= 2.5) return NutriScore.B;
     if (avg >= 1.5) return NutriScore.C;
@@ -58,10 +63,10 @@ const App: React.FC = () => {
     const totalScore = calculateGlobalScore(updatedProducts);
     const count = updatedProducts.length || 1;
     const summary = {
-      totalCalories: Math.round(updatedProducts.reduce((acc, p) => acc + p.calories, 0)),
-      avgSugar: +(updatedProducts.reduce((acc, p) => acc + p.sugar, 0) / count).toFixed(1),
-      avgSalt: +(updatedProducts.reduce((acc, p) => acc + p.salt, 0) / count).toFixed(1),
-      avgSaturatedFat: +(updatedProducts.reduce((acc, p) => acc + p.saturatedFat, 0) / count).toFixed(1),
+      totalCalories: Math.round(updatedProducts.reduce((acc, p) => acc + (p.calories || 0), 0)),
+      avgSugar: +(updatedProducts.reduce((acc, p) => acc + (p.sugar || 0), 0) / count).toFixed(1),
+      avgSalt: +(updatedProducts.reduce((acc, p) => acc + (p.salt || 0), 0) / count).toFixed(1),
+      avgSaturatedFat: +(updatedProducts.reduce((acc, p) => acc + (p.saturatedFat || 0), 0) / count).toFixed(1),
       processedRatio: Math.round((updatedProducts.filter(p => p.isUltraProcessed).length / count) * 100)
     };
     
@@ -84,8 +89,9 @@ const App: React.FC = () => {
 
     try {
       const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
         reader.readAsDataURL(file);
       });
 
@@ -104,15 +110,15 @@ const App: React.FC = () => {
         id: Date.now().toString(),
         timestamp: Date.now(),
         date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-        storeName: data.storeName,
-        products: data.products,
-        totalScore: calculateGlobalScore(data.products),
+        storeName: data.storeName || "Mon Magasin",
+        products: data.products || [],
+        totalScore: calculateGlobalScore(data.products || []),
         summary: {
-          totalCalories: Math.round(data.products.reduce((acc, p) => acc + p.calories, 0)),
-          avgSugar: +(data.products.reduce((acc, p) => acc + p.sugar, 0) / (data.products.length || 1)).toFixed(1),
-          avgSalt: +(data.products.reduce((acc, p) => acc + p.salt, 0) / (data.products.length || 1)).toFixed(1),
-          avgSaturatedFat: +(data.products.reduce((acc, p) => acc + p.saturatedFat, 0) / (data.products.length || 1)).toFixed(1),
-          processedRatio: Math.round((data.products.filter(p => p.isUltraProcessed).length / (data.products.length || 1)) * 100)
+          totalCalories: Math.round((data.products || []).reduce((acc, p) => acc + (p.calories || 0), 0)),
+          avgSugar: +((data.products || []).reduce((acc, p) => acc + (p.sugar || 0), 0) / (data.products?.length || 1)).toFixed(1),
+          avgSalt: +((data.products || []).reduce((acc, p) => acc + (p.salt || 0), 0) / (data.products?.length || 1)).toFixed(1),
+          avgSaturatedFat: +((data.products || []).reduce((acc, p) => acc + (p.saturatedFat || 0), 0) / (data.products?.length || 1)).toFixed(1),
+          processedRatio: Math.round(((data.products || []).filter(p => p.isUltraProcessed).length / (data.products?.length || 1)) * 100)
         }
       };
 
@@ -122,6 +128,7 @@ const App: React.FC = () => {
       localStorage.setItem('ticketmiam_final_v1', JSON.stringify(newHistory));
       setView('result');
     } catch (err: any) {
+      console.error("Analysis error:", err);
       setError("Désolé, l'image n'a pas pu être analysée. Réessayez avec une photo plus nette.");
       setView('home');
     } finally {
