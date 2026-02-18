@@ -1,6 +1,6 @@
 {
   "name": "TicketMiam",
-  "description": "Scannez vos tickets gratuitement avec Tesseract et Open Food Facts.",
+  "description": "Scan de tickets de caisse intelligent et rapide.",
   "requestFramePermissions": [
     "camera"
   ]

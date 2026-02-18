@@ -4,34 +4,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TicketMiam - Analyse IA</title>
+    <title>TicketMiam - Scan 100% Fiable</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script>
-      // Polyfill pour les librairies dépendantes de Node
-      window.process = window.process || { env: {} };
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>window.process = { env: {} };</script>
     <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; margin: 0; color: #1e293b; overflow-x: hidden; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
-        .nutri-a { background-color: #008b4c; } 
-        .nutri-b { background-color: #80c11e; }
-        .nutri-c { background-color: #fecb02; } 
-        .nutri-d { background-color: #ee8100; }
-        .nutri-e { background-color: #e63e11; }
+        body { font-family: 'Outfit', sans-serif; background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
+        .nutri-A { background-color: #008b4c; } .nutri-B { background-color: #80c11e; }
+        .nutri-C { background-color: #fecb02; color: #000 !important; } .nutri-D { background-color: #ee8100; }
+        .nutri-E { background-color: #e63e11; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slideIn { animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
     </style>
     <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.41.0",
-    "recharts": "https://esm.sh/recharts@2.15.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
     "tesseract.js": "https://esm.sh/tesseract.js@^7.0.0"
   }
 }
