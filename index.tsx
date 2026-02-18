@@ -1,1 +1,1 @@
-// Ce fichier a été fusionné dans index.html pour garantir la compatibilité GitHub Pages.
+// Empty file to prevent TypeScript compilation issues on static hosts
