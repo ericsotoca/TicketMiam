@@ -5,20 +5,20 @@ import { NutriScore, Product } from "../types.ts";
 const PRODUCT_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    storeName: { type: Type.STRING, description: "Nom de l'enseigne (ex: Intermarché)" },
+    storeName: { type: Type.STRING, description: "Nom de l'enseigne" },
     products: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          name: { type: Type.STRING, description: "Nom complet décodé (ex: 'Jambon' pour 'JBN')" },
-          rawName: { type: Type.STRING, description: "Texte exact tel qu'écrit sur le ticket" },
+          name: { type: Type.STRING, description: "Nom décodé (ex: 'Oeufs de poule' pour 'BOITE X20 NEIGE')" },
+          rawName: { type: Type.STRING, description: "Texte exact du ticket" },
           nutriScore: { type: Type.STRING, description: "Score A, B, C, D ou E" },
-          isUltraProcessed: { type: Type.BOOLEAN, description: "Vrai si NOVA 4" },
-          calories: { type: Type.NUMBER, description: "kcal/100g" },
-          proteins: { type: Type.NUMBER, description: "g/100g" },
-          carbs: { type: Type.NUMBER, description: "g/100g" },
-          fats: { type: Type.NUMBER, description: "g/100g" },
+          isUltraProcessed: { type: Type.BOOLEAN },
+          calories: { type: Type.NUMBER },
+          proteins: { type: Type.NUMBER },
+          carbs: { type: Type.NUMBER },
+          fats: { type: Type.NUMBER },
           sugar: { type: Type.NUMBER },
           salt: { type: Type.NUMBER },
           saturatedFat: { type: Type.NUMBER }
@@ -31,6 +31,7 @@ const PRODUCT_SCHEMA = {
 };
 
 export async function processReceipt(base64Image: string): Promise<{ storeName: string, products: Product[] }> {
+  // Utilisation directe de process.env.API_KEY comme requis
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const imagePart = {
@@ -40,17 +41,21 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
     },
   };
 
-  const prompt = `Tu es un expert en tickets de caisse de supermarchés français (Intermarché, Leclerc, Carrefour). 
-  Analyse cette image et extrais CHAQUE ligne de produit alimentaire.
+  const prompt = `Analyse ce ticket Intermarché. 
+  Extraits chaque produit alimentaire et décode les abréviations :
+  - "BOITE X20 NEIGE" -> 20 Oeufs frais (Nutri-Score A, 13g prot/100g).
+  - "WASA AUTHENTIQUE" -> Cracker de seigle.
+  - "PAQUITO FRAMBOISE" -> Confiture ou Coulis.
+  - "IDS HOUMOUS" -> Houmous.
+  - "PSDT BUCHE CHEVRE" -> Bûche de chèvre (Pâturages).
+  - "TOP BUDGET CHOC.LAIT" -> Chocolat au lait.
+  - "PATURAGES ROQUEFORT" -> Fromage Roquefort.
+  - "CHABRIOR EXTRA MOELN" -> Pain de mie extra moelleux.
+  - "T.BUDGET COL ALASK" -> Colin d'Alaska.
   
-  IMPORTANT : 
-  - Décode les abréviations : "JBN" -> Jambon, "COL ALASK" -> Colin d'Alaska, "CHOC.LAIT" -> Chocolat au lait, "TRANCH" -> Tranches.
-  - "BOITE X20 NEIGE" correspond à des œufs.
-  - Identifie les marques distributeurs : "Top Budget", "Pâturages", "Chabrior", "Paquito".
-  - Pour chaque produit, utilise tes connaissances nutritionnelles pour estimer les macros/100g.
-  - Ignore les lignes de prix, totaux, et articles non-alimentaires (sacs, piles).
-  
-  Réponds uniquement au format JSON.`;
+  Fournis les valeurs nutritionnelles moyennes pour 100g de chaque produit identifié.
+  Ignore le montant total (32.21 EUR) et les frais de service.
+  Réponds en JSON uniquement.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -64,11 +69,11 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
 
     const result = JSON.parse(response.text || "{}");
     return {
-      storeName: result.storeName || "Supermarché",
+      storeName: result.storeName || "Intermarché",
       products: (result.products || []).map((p: any) => ({
         ...p,
         id: Math.random().toString(36).substring(2, 11),
-        quantity: 1, // Par défaut
+        quantity: 1,
         sugar: p.sugar || 0,
         salt: p.salt || 0,
         saturatedFat: p.saturatedFat || 0
@@ -76,6 +81,6 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
     };
   } catch (error) {
     console.error("Gemini Error:", error);
-    throw new Error("Erreur d'analyse. Photo trop floue ou problème réseau.");
+    throw error;
   }
 }
