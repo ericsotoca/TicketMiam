@@ -1,1 +1,1 @@
-// Standalone index.html used for production deployment
+// Mode Standalone : tout est géré par index.html

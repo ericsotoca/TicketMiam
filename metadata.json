@@ -1,6 +1,6 @@
 {
   "name": "TicketMiam",
-  "description": "Scannez vos tickets de caisse pour obtenir instantanément une analyse nutritionnelle complète de votre panier : Nutri-Score global, alertes sur les excès et répartition des macronutriments.",
+  "description": "Scannez vos tickets gratuitement avec Tesseract et Open Food Facts.",
   "requestFramePermissions": [
     "camera"
   ]
