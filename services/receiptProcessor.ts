@@ -33,9 +33,11 @@ export async function searchProduct(query: string): Promise<Product | null> {
         'a': NutriScore.A, 'b': NutriScore.B, 'c': NutriScore.C, 'd': NutriScore.D, 'e': NutriScore.E
       };
 
+      // Ensure all fields required by the Product interface are present, including rawName
       return {
         id: Math.random().toString(36).substring(2, 11),
         name: p.product_name_fr || p.product_name || trimmedQuery,
+        rawName: trimmedQuery,
         quantity: 1,
         nutriScore: scoreMap[p.nutrition_grades] || NutriScore.C,
         isUltraProcessed: p.nova_group === 4,

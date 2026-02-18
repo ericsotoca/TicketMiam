@@ -5,25 +5,25 @@ import { NutriScore, Product } from "../types.ts";
 const PRODUCT_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    storeName: { type: Type.STRING, description: "Nom de l'enseigne du magasin" },
+    storeName: { type: Type.STRING, description: "Nom de l'enseigne (ex: Intermarché)" },
     products: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          name: { type: Type.STRING, description: "Nom clair et lisible du produit" },
-          quantity: { type: Type.NUMBER, description: "Quantité ou poids approximatif" },
-          nutriScore: { type: Type.STRING, description: "Nutri-Score estimé (A, B, C, D, ou E)" },
-          isUltraProcessed: { type: Type.BOOLEAN, description: "Vrai si c'est un produit ultra-transformé (NOVA 4)" },
-          calories: { type: Type.NUMBER, description: "kcal pour 100g" },
-          sugar: { type: Type.NUMBER, description: "Sucre en g pour 100g" },
-          salt: { type: Type.NUMBER, description: "Sel en g pour 100g" },
-          saturatedFat: { type: Type.NUMBER, description: "Graisses saturées en g pour 100g" },
-          proteins: { type: Type.NUMBER, description: "Protéines en g pour 100g" },
-          carbs: { type: Type.NUMBER, description: "Glucides en g pour 100g" },
-          fats: { type: Type.NUMBER, description: "Lipides en g pour 100g" },
+          name: { type: Type.STRING, description: "Nom complet décodé (ex: 'Jambon' pour 'JBN')" },
+          rawName: { type: Type.STRING, description: "Texte exact tel qu'écrit sur le ticket" },
+          nutriScore: { type: Type.STRING, description: "Score A, B, C, D ou E" },
+          isUltraProcessed: { type: Type.BOOLEAN, description: "Vrai si NOVA 4" },
+          calories: { type: Type.NUMBER, description: "kcal/100g" },
+          proteins: { type: Type.NUMBER, description: "g/100g" },
+          carbs: { type: Type.NUMBER, description: "g/100g" },
+          fats: { type: Type.NUMBER, description: "g/100g" },
+          sugar: { type: Type.NUMBER },
+          salt: { type: Type.NUMBER },
+          saturatedFat: { type: Type.NUMBER }
         },
-        required: ["name", "nutriScore", "isUltraProcessed", "calories", "sugar", "salt", "saturatedFat", "proteins", "carbs", "fats"]
+        required: ["name", "rawName", "nutriScore", "isUltraProcessed", "calories", "proteins", "carbs", "fats"]
       }
     }
   },
@@ -40,11 +40,16 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
     },
   };
 
-  const prompt = `Analyse ce ticket de caisse avec précision chirurgicale.
-  1. Identifie l'enseigne.
-  2. Liste chaque produit alimentaire.
-  3. Pour chaque produit, utilise tes connaissances nutritionnelles pour estimer les valeurs (Nutri-Score, NOVA, Macros) pour 100g.
-  4. Sois pessimiste sur le Nutri-Score si tu hésites.
+  const prompt = `Tu es un expert en tickets de caisse de supermarchés français (Intermarché, Leclerc, Carrefour). 
+  Analyse cette image et extrais CHAQUE ligne de produit alimentaire.
+  
+  IMPORTANT : 
+  - Décode les abréviations : "JBN" -> Jambon, "COL ALASK" -> Colin d'Alaska, "CHOC.LAIT" -> Chocolat au lait, "TRANCH" -> Tranches.
+  - "BOITE X20 NEIGE" correspond à des œufs.
+  - Identifie les marques distributeurs : "Top Budget", "Pâturages", "Chabrior", "Paquito".
+  - Pour chaque produit, utilise tes connaissances nutritionnelles pour estimer les macros/100g.
+  - Ignore les lignes de prix, totaux, et articles non-alimentaires (sacs, piles).
+  
   Réponds uniquement au format JSON.`;
 
   try {
@@ -59,14 +64,18 @@ export async function processReceipt(base64Image: string): Promise<{ storeName: 
 
     const result = JSON.parse(response.text || "{}");
     return {
-      storeName: result.storeName || "Mon Magasin",
+      storeName: result.storeName || "Supermarché",
       products: (result.products || []).map((p: any) => ({
         ...p,
-        id: Math.random().toString(36).substring(2, 11)
+        id: Math.random().toString(36).substring(2, 11),
+        quantity: 1, // Par défaut
+        sugar: p.sugar || 0,
+        salt: p.salt || 0,
+        saturatedFat: p.saturatedFat || 0
       }))
     };
   } catch (error) {
     console.error("Gemini Error:", error);
-    throw new Error("Erreur d'analyse. Assurez-vous que le ticket est bien éclairé et lisible.");
+    throw new Error("Erreur d'analyse. Photo trop floue ou problème réseau.");
   }
 }

@@ -10,6 +10,7 @@ export enum NutriScore {
 export interface Product {
   id: string;
   name: string;
+  rawName: string; // The exact text as found on the receipt
   quantity: number;
   nutriScore: NutriScore;
   isUltraProcessed: boolean; // Equivalent NOVA 4
