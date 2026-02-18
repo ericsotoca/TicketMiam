@@ -1,1 +1,1 @@
-// Empty file to prevent TypeScript compilation issues on static hosts
+// Standalone index.html used for production deployment

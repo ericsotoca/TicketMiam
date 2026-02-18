@@ -3,23 +3,23 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TicketMiam - Analyse Nutritionnelle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TicketMiam - Nutri-Scan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; margin: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; margin: 0; color: #1e293b; overflow-x: hidden; }
         .nutri-a { background-color: #008b4c; } .nutri-b { background-color: #80c11e; }
         .nutri-c { background-color: #fecb02; } .nutri-d { background-color: #ee8100; }
         .nutri-e { background-color: #e63e11; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
-        .custom-shadow { box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.1); }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-slideIn { animation: slideIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards; }
         #root:empty::before {
-            content: "TicketMiam...";
+            content: "TicketMiam";
             display: flex; justify-content: center; align-items: center; height: 100vh;
-            color: #10b981; font-weight: 900; font-size: 1.8rem; letter-spacing: -0.05em;
+            color: #10b981; font-weight: 900; font-size: 2rem; letter-spacing: -0.05em;
         }
     </style>
 <script type="importmap">
@@ -38,17 +38,15 @@
     <div id="root"></div>
 
     <script type="module">
-        // Importations directes via ESM.sh (le standard du web moderne)
         import { h, render } from 'https://esm.sh/preact@10.23.1';
-        import { useState, useEffect } from 'https://esm.sh/preact@10.23.1/hooks';
+        import { useState, useEffect, useMemo } from 'https://esm.sh/preact@10.23.1/hooks';
         import htm from 'https://esm.sh/htm@3.1.1';
         import { GoogleGenAI, Type } from 'https://esm.sh/@google/genai@1.41.0';
-        import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'https://esm.sh/recharts@2.12.7?external=preact/compat';
+        import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'https://esm.sh/recharts@2.12.7?external=preact/compat';
 
         const html = htm.bind(h);
-        window.process = { env: { API_KEY: "" } };
 
-        // --- CONFIGURATION GEMINI ---
+        // --- SERVICES ---
         const SCHEMA = {
             type: Type.OBJECT,
             properties: {
@@ -73,22 +71,73 @@
             required: ["store", "items"]
         };
 
-        async function processReceipt(base64) {
-            const ai = new GoogleGenAI({ apiKey: window.process.env.API_KEY });
-            const prompt = "Analyse ce ticket. Liste les produits alimentaires : Nutri-Score (A-E), NOVA 4 (booléen), Macros (p, c, l) pour 100g. JSON uniquement.";
+        async function compressImage(base64) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width; let height = img.height;
+                    const max = 1200;
+                    if (width > height && width > max) { height *= max / width; width = max; }
+                    else if (height > max) { width *= max / height; height = max; }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.src = base64;
+            });
+        }
+
+        async function analyzeReceipt(base64) {
+            // CRITIQUE: Utilisation directe de process.env.API_KEY injectée par l'hôte
+            const apiKey = process.env.API_KEY;
+            if (!apiKey) throw new Error("API Key missing");
+            
+            const ai = new GoogleGenAI({ apiKey });
+            const compressed = await compressImage(base64);
+            
+            const prompt = "Analyse ce ticket de caisse. Liste les produits alimentaires avec estimation Nutri-Score (A-E), NOVA 4 (booléen) et macros moyennes (p, c, l) pour 100g. Réponds en JSON pur.";
+            
             const response = await ai.models.generateContent({
                 model: "gemini-3-flash-preview",
-                contents: { parts: [{ inlineData: { mimeType: "image/jpeg", data: base64.split(",")[1] } }, { text: prompt }] },
+                contents: { parts: [{ inlineData: { mimeType: "image/jpeg", data: compressed.split(",")[1] } }, { text: prompt }] },
                 config: { responseMimeType: "application/json", responseSchema: SCHEMA }
             });
+            
             return JSON.parse(response.text);
         }
 
-        // --- COMPOSANTS ---
+        // --- UI COMPONENTS ---
         const Badge = ({ score, size = 'md' }) => {
             const colors = { A: 'nutri-a', B: 'nutri-b', C: 'nutri-c', D: 'nutri-d', E: 'nutri-e' };
             const sizes = { sm: 'w-6 h-6 text-[10px]', md: 'w-10 h-10 text-lg', lg: 'w-16 h-16 text-3xl' };
-            return html`<div class="${colors[score] || 'bg-slate-200'} text-white ${sizes[size]} rounded-lg flex items-center justify-center font-black shadow-sm">${score}</div>`;
+            return html`<div class="${colors[score] || 'bg-slate-200'} text-white ${sizes[size]} rounded-xl flex items-center justify-center font-black shadow-md">${score}</div>`;
+        };
+
+        const MacroChart = ({ p, c, l }) => {
+            const data = [
+                { name: 'Protéines', value: p || 1, color: '#10b981' },
+                { name: 'Glucides', value: c || 1, color: '#3b82f6' },
+                { name: 'Lipides', value: l || 1, color: '#f59e0b' }
+            ];
+            return html`
+                <div class="h-48 w-full">
+                    <${ResponsiveContainer} width="100%" height="100%">
+                        <${PieChart}>
+                            <${Pie} data=${data} cx="50%" cy="50%" innerRadius="60%" outerRadius="80%" paddingAngle=5 dataKey="value" stroke="none">
+                                ${data.map((entry, i) => html`<${Cell} key=${i} fill=${entry.color} />`)}
+                            <//>
+                            <${Tooltip} contentStyle=${{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                        <//>
+                    <//>
+                    <div class="flex justify-center space-x-4 text-[10px] font-black uppercase tracking-tighter text-slate-400 mt-2">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span> Prot</span>
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-500 mr-1"></span> Gluc</span>
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1"></span> Lip</span>
+                    </div>
+                </div>
+            `;
         };
 
         const App = () => {
@@ -98,18 +147,18 @@
             const [history, setHistory] = useState([]);
 
             useEffect(() => {
-                const saved = localStorage.getItem('tm_hist_v3');
+                const saved = localStorage.getItem('tm_v4_history');
                 if (saved) setHistory(JSON.parse(saved));
             }, []);
 
-            const handleFile = async (e) => {
+            const onUpload = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                setLoading(true);
+                setLoading(true); setView('scan');
                 try {
                     const reader = new FileReader();
                     const base64 = await new Promise(r => { reader.onload = () => r(reader.result); reader.readAsDataURL(file); });
-                    const res = await processReceipt(base64);
+                    const res = await analyzeReceipt(base64);
                     
                     const scoreMap = { A: 4, B: 3, C: 2, D: 1, E: 0 };
                     const avg = res.items.reduce((acc, i) => acc + (scoreMap[i.score] || 2), 0) / (res.items.length || 1);
@@ -119,48 +168,64 @@
                     setData(result);
                     const newHist = [result, ...history].slice(0, 10);
                     setHistory(newHist);
-                    localStorage.setItem('tm_hist_v3', JSON.stringify(newHist));
+                    localStorage.setItem('tm_v4_history', JSON.stringify(newHist));
                     setView('result');
                 } catch (err) {
-                    alert("Erreur lors de l'analyse du ticket.");
+                    console.error(err);
+                    alert("Erreur : " + err.message);
+                    setView('home');
                 } finally { setLoading(false); }
             };
 
+            const totals = useMemo(() => {
+                if (!data) return { p: 0, c: 0, l: 0 };
+                return data.items.reduce((acc, curr) => ({
+                    p: acc.p + (curr.p || 0),
+                    c: acc.c + (curr.c || 0),
+                    l: acc.l + (curr.l || 0)
+                }), { p: 0, c: 0, l: 0 });
+            }, [data]);
+
             if (loading) return html`
-                <div class="min-h-screen flex flex-col items-center justify-center p-10 space-y-8 animate-fadeIn">
-                    <div class="w-16 h-16 border-4 border-emerald-500 border-t-transparent animate-spin rounded-full"></div>
-                    <h2 class="text-2xl font-black text-slate-800">Analyse en cours...</h2>
+                <div class="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-10 text-center animate-slideIn">
+                    <div class="relative w-24 h-24 mb-8">
+                        <div class="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
+                        <div class="absolute inset-0 border-4 border-emerald-500 rounded-full border-t-transparent animate-spin"></div>
+                    </div>
+                    <h2 class="text-3xl font-black text-slate-900 tracking-tighter">Analyse du panier...</h2>
+                    <p class="text-slate-400 mt-2 font-medium">Gemini déchiffre votre ticket</p>
                 </div>
             `;
 
             return html`
                 <div class="max-w-md mx-auto min-h-screen p-6 pb-32">
                     ${view === 'home' ? html`
-                        <div class="space-y-10 py-10 animate-fadeIn">
-                            <header class="text-center">
-                                <h1 class="text-5xl font-black tracking-tighter text-slate-900">TicketMiam</h1>
-                                <p class="text-slate-400 font-medium mt-2 italic">Scannez, analysez, mangez mieux.</p>
+                        <div class="space-y-12 py-10 animate-slideIn">
+                            <header class="text-center space-y-4">
+                                <h1 class="text-6xl font-black tracking-tighter text-slate-900 leading-none">Ticket<br/><span class="text-emerald-500">Miam</span></h1>
+                                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em]">Nutrition & IA • v1.4 Stable</p>
                             </header>
                             
-                            <label class="flex flex-col items-center justify-center w-full h-80 border-4 border-emerald-500 border-dashed rounded-[3rem] bg-white custom-shadow cursor-pointer hover:bg-emerald-50 transition-all active:scale-95">
-                                <div class="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg mb-4">
-                                    <i class="fas fa-receipt text-3xl"></i>
+                            <label class="flex flex-col items-center justify-center w-full h-80 border-4 border-emerald-500 border-dashed rounded-[3.5rem] bg-white shadow-2xl cursor-pointer hover:bg-emerald-50 transition-all active:scale-95">
+                                <div class="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-xl mb-6 transform group-hover:rotate-12">
+                                    <i class="fas fa-camera text-4xl"></i>
                                 </div>
-                                <span class="font-black text-slate-800 text-xl">Scanner un ticket</span>
-                                <input type="file" class="hidden" accept="image/*" capture="environment" onchange=${handleFile} />
+                                <span class="font-black text-slate-800 text-2xl">Scanner un ticket</span>
+                                <p class="text-slate-400 text-sm mt-1">Caisse ou Drive</p>
+                                <input type="file" class="hidden" accept="image/*" capture="environment" onchange=${onUpload} />
                             </label>
 
                             ${history.length > 0 && html`
                                 <div class="space-y-4">
-                                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.2em] px-2">Historique</h3>
-                                    <div class="bg-white rounded-[2rem] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
+                                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Derniers passages</h3>
+                                    <div class="bg-white rounded-[2.5rem] border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm">
                                         ${history.map(h => html`
-                                            <div key=${h.id} onclick=${() => { setData(h); setView('result'); }} class="flex items-center justify-between p-4 hover:bg-slate-50 cursor-pointer">
+                                            <div key=${h.id} onclick=${() => { setData(h); setView('result'); }} class="flex items-center justify-between p-5 hover:bg-slate-50 cursor-pointer transition-colors">
                                                 <div class="flex items-center space-x-4">
                                                     <${Badge} score=${h.global} size="sm" />
                                                     <span class="font-bold text-slate-800 text-sm truncate w-32">${h.store}</span>
                                                 </div>
-                                                <span class="text-[10px] font-black text-slate-300 uppercase">${h.date}</span>
+                                                <i class="fas fa-chevron-right text-slate-200 text-xs"></i>
                                             </div>
                                         `)}
                                     </div>
@@ -168,33 +233,31 @@
                             `}
                         </div>
                     ` : html`
-                        <div class="space-y-6 animate-fadeIn">
-                            <button onclick=${() => setView('home')} class="w-12 h-12 rounded-full bg-white shadow-md flex items-center justify-center text-slate-500"><i class="fas fa-arrow-left"></i></button>
+                        <div class="space-y-6 animate-slideIn">
+                            <button onclick=${() => setView('home')} class="w-12 h-12 rounded-full bg-white shadow-lg flex items-center justify-center text-slate-400 active:scale-90 transition-all"><i class="fas fa-arrow-left"></i></button>
                             
-                            <section class="bg-white rounded-[3rem] p-8 shadow-xl text-center space-y-4 relative overflow-hidden">
-                                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
-                                <p class="text-[10px] font-black text-slate-300 uppercase tracking-widest">Score Global Panier</p>
+                            <section class="bg-white rounded-[3rem] p-10 shadow-2xl text-center space-y-6 relative overflow-hidden">
+                                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
+                                <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Bilan Nutritionnel</p>
                                 <div class="flex justify-center scale-150 py-4"><${Badge} score=${data.global} size="lg" /></div>
-                                <h2 class="text-2xl font-black text-slate-900">${data.store}</h2>
+                                <h2 class="text-3xl font-black text-slate-900 leading-tight">${data.store}</h2>
                             </section>
 
-                            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Répartition Macros</h3>
-                                <div class="h-48 w-full flex items-center justify-center text-slate-300 italic">
-                                   Visualisation disponible
-                                </div>
+                            <div class="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Répartition Moyenne</h3>
+                                <${MacroChart} p=${totals.p} c=${totals.c} l=${totals.l} />
                             </div>
 
-                            <div class="space-y-3">
-                                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest px-2">Liste des produits</h3>
+                            <div class="space-y-4">
+                                <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest px-4">Panier détaillé</h3>
                                 ${data.items.map((item, i) => html`
-                                    <div key=${i} class="bg-white p-4 rounded-2xl flex items-center space-x-4 border border-slate-100 shadow-sm">
+                                    <div key=${i} class="bg-white p-5 rounded-3xl flex items-center space-x-4 border border-slate-100 shadow-sm animate-slideIn" style="animation-delay: ${i * 0.05}s">
                                         <${Badge} score=${item.score} size="sm" />
-                                        <div class="flex-1">
-                                            <p class="font-bold text-slate-800 text-sm leading-tight">${item.name}</p>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="font-bold text-slate-800 text-sm truncate">${item.name}</p>
                                             <div class="flex items-center space-x-2 mt-1">
                                                 <span class="text-[9px] text-slate-400 font-black uppercase">${item.kcal} kcal</span>
-                                                ${item.nova4 && html`<span class="bg-red-50 text-red-500 text-[8px] px-1.5 py-0.5 rounded font-black uppercase">Ultra-T</span>`}
+                                                ${item.nova4 && html`<span class="bg-red-50 text-red-500 text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase">Ultra-T</span>`}
                                             </div>
                                         </div>
                                     </div>
@@ -203,13 +266,13 @@
                         </div>
                     `}
 
-                    <nav class="fixed bottom-6 left-10 right-10 bg-white/90 backdrop-blur-xl border border-white/20 px-8 py-4 flex justify-around items-center rounded-full shadow-2xl z-50">
-                        <button onclick=${() => setView('home')} class="text-2xl text-emerald-500"><i class="fas fa-home"></i></button>
-                        <label class="bg-emerald-500 w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg cursor-pointer transform -translate-y-4 hover:scale-110 active:scale-95 transition-all">
-                            <i class="fas fa-plus text-xl"></i>
-                            <input type="file" class="hidden" accept="image/*" capture="environment" onchange=${handleFile} />
+                    <nav class="fixed bottom-8 left-10 right-10 glass px-10 py-5 flex justify-around items-center rounded-full shadow-2xl z-50">
+                        <button onclick=${() => setView('home')} class="text-2xl ${view === 'home' ? 'text-emerald-500' : 'text-slate-300'}"><i class="fas fa-home"></i></button>
+                        <label class="bg-emerald-500 w-16 h-16 rounded-full flex items-center justify-center text-white shadow-xl cursor-pointer transform -translate-y-10 active:scale-90 hover:scale-110 transition-all border-4 border-slate-50">
+                            <i class="fas fa-plus text-2xl"></i>
+                            <input type="file" class="hidden" accept="image/*" capture="environment" onchange=${onUpload} />
                         </label>
-                        <button onclick=${() => { localStorage.clear(); location.reload(); }} class="text-2xl text-slate-300"><i class="fas fa-sync"></i></button>
+                        <button onclick=${() => { localStorage.clear(); location.reload(); }} class="text-2xl text-slate-300"><i class="fas fa-trash"></i></button>
                     </nav>
                 </div>
             `;
